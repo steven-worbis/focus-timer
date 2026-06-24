@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Focus Timer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f4f0;
+      --surface: #ffffff;
+      --text: #1a1a18;
+      --muted: #888780;
+      --border: rgba(0,0,0,0.1);
+      --focus-color: #534AB7;
+      --break-color: #0F6E56;
+      --long-color: #185FA5;
+      --ring-bg: #e8e7e2;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1a;
+        --surface: #2a2a28;
+        --text: #e8e7e2;
+        --muted: #888780;
+        --border: rgba(255,255,255,0.1);
+        --ring-bg: #3a3a38;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 2.5rem;
+    }
+
+    .mode-tabs {
+      display: flex;
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px;
+      margin-bottom: 3rem;
+    }
+
+    .mode-tab {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 6px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-tab.active {
+      background: var(--phase-color, var(--focus-color));
+      color: #fff;
+    }
+
+    .timer-ring {
+      position: relative;
+      width: 260px;
+      height: 260px;
+      margin-bottom: 2.5rem;
+    }
+
+    .timer-ring svg {
+      transform: rotate(-90deg);
+    }
+
+    .ring-track {
+      fill: none;
+      stroke: var(--ring-bg);
+      stroke-width: 8;
+    }
+
+    .ring-progress {
+      fill: none;
+      stroke: var(--phase-color, var(--focus-color));
+      stroke-width: 8;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear, stroke 0.4s;
+    }
+
+    .timer-display {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .time-text {
+      font-size: 3.5rem;
+      font-weight: 300;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+
+    .phase-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .btn-main {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      border: none;
+      background: var(--phase-color, var(--focus-color));
+      color: #fff;
+      font-size: 1.4rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.15s, transform 0.1s;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    }
+
+    .btn-main:hover { opacity: 0.9; }
+    .btn-main:active { transform: scale(0.96); }
+
+    .btn-secondary {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .btn-secondary:hover { color: var(--text); background: var(--ring-bg); }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+      max-width: 320px;
+      margin-bottom: 2.5rem;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.9rem 0.75rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 500;
+      color: var(--text);
+      display: block;
+    }
+
+    .stat-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 2px;
+    }
+
+    .session-dots {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      flex-wrap: wrap;
+      max-width: 320px;
+      margin-bottom: 2rem;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--ring-bg);
+      transition: background 0.3s;
+    }
+
+    .dot.done { background: var(--focus-color); }
+
+    .settings-toggle {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+
+    .settings-toggle:hover { color: var(--text); }
+
+    .settings-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.25rem;
+      width: 100%;
+      max-width: 320px;
+      margin-top: 1rem;
+    }
+
+    .settings-panel.open { display: block; }
+
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+
+    .setting-row:last-child { border-bottom: none; }
+
+    .setting-row label { color: var(--muted); }
+
+    .setting-row input[type="number"] {
+      width: 56px;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .notify-badge {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      background: var(--focus-color);
+      color: #fff;
+      font-size: 0.8rem;
+      padding: 6px 14px;
+      border-radius: 999px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .notify-badge.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<h1>Focus Timer</h1>
+
+<div class="mode-tabs">
+  <button class="mode-tab active" data-mode="focus" onclick="switchMode('focus')">Fokus</button>
+  <button class="mode-tab" data-mode="break" onclick="switchMode('break')">Pause</button>
+  <button class="mode-tab" data-mode="long" onclick="switchMode('long')">Lange Pause</button>
+</div>
+
+<div class="timer-ring">
+  <svg width="260" height="260" viewBox="0 0 260 260">
+    <circle class="ring-track" cx="130" cy="130" r="118" />
+    <circle class="ring-progress" id="ring" cx="130" cy="130" r="118" />
+  </svg>
+  <div class="timer-display">
+    <span class="time-text" id="timeDisplay">25:00</span>
+    <span class="phase-label" id="phaseLabel">Fokusphase</span>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn-secondary" title="Zurücksetzen" onclick="resetTimer()">↺</button>
+  <button class="btn-main" id="playBtn" onclick="toggleTimer()">▶</button>
+  <button class="btn-secondary" title="Überspringen" onclick="nextPhase()">⏭</button>
+</div>
+
+<div class="stats">
+  <div class="stat-card">
+    <span class="stat-value" id="statSessions">0</span>
+    <span class="stat-label">Sessions</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value" id="statMinutes">0</span>
+    <span class="stat-label">Minuten</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value" id="statStreak">0</span>
+    <span class="stat-label">Streak</span>
+  </div>
+</div>
+
+<div class="session-dots" id="dots"></div>
+
+<button class="settings-toggle" onclick="toggleSettings()">⚙ Einstellungen</button>
+
+<div class="settings-panel" id="settingsPanel">
+  <div class="setting-row">
+    <label>Fokus (min)</label>
+    <input type="number" id="setFocus" value="25" min="1" max="60" onchange="applySettings()" />
+  </div>
+  <div class="setting-row">
+    <label>Kurzpause (min)</label>
+    <input type="number" id="setBreak" value="5" min="1" max="30" onchange="applySettings()" />
+  </div>
+  <div class="setting-row">
+    <label>Lange Pause (min)</label>
+    <input type="number" id="setLong" value="15" min="5" max="60" onchange="applySettings()" />
+  </div>
+  <div class="setting-row">
+    <label>Sessions bis lange Pause</label>
+    <input type="number" id="setSessionsUntilLong" value="4" min="2" max="8" onchange="applySettings()" />
+  </div>
+</div>
+
+<div class="notify-badge" id="notify"></div>
+
+<script>
+  const CIRCUMFERENCE = 2 * Math.PI * 118;
+
+  const durations = { focus: 25, break: 5, long: 15 };
+  const labels = { focus: 'Fokusphase', break: 'Kurzpause', long: 'Lange Pause' };
+  const colors = { focus: '#534AB7', break: '#0F6E56', long: '#185FA5' };
+  let sessionsUntilLong = 4;
+
+  let mode = 'focus';
+  let totalSeconds = durations.focus * 60;
+  let remaining = totalSeconds;
+  let running = false;
+  let interval = null;
+  let completedSessions = 0;
+  let totalFocusMinutes = 0;
+  let streak = 0;
+  let lastDate = null;
+
+  const ring = document.getElementById('ring');
+  const timeDisplay = document.getElementById('timeDisplay');
+  const phaseLabel = document.getElementById('phaseLabel');
+  const playBtn = document.getElementById('playBtn');
+  const dots = document.getElementById('dots');
+
+  function init() {
+    ring.style.strokeDasharray = CIRCUMFERENCE;
+    updateRing();
+    updateDots();
+    loadStats();
+  }
+
+  function setPhaseColor(c) {
+    document.documentElement.style.setProperty('--phase-color', c);
+  }
+
+  function switchMode(m) {
+    mode = m;
+    clearInterval(interval);
+    running = false;
+    playBtn.textContent = '▶';
+    totalSeconds = durations[m] * 60;
+    remaining = totalSeconds;
+    setPhaseColor(colors[m]);
+    phaseLabel.textContent = labels[m];
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === m));
+    updateDisplay();
+    updateRing();
+  }
+
+  function toggleTimer() {
+    if (running) {
+      clearInterval(interval);
+      running = false;
+      playBtn.textContent = '▶';
+    } else {
+      running = true;
+      playBtn.textContent = '⏸';
+      interval = setInterval(tick, 1000);
+    }
+  }
+
+  function tick() {
+    if (remaining <= 0) {
+      clearInterval(interval);
+      running = false;
+      onComplete();
+      return;
+    }
+    remaining--;
+    updateDisplay();
+    updateRing();
+  }
+
+  function onComplete() {
+    if (mode === 'focus') {
+      completedSessions++;
+      totalFocusMinutes += durations.focus;
+      updateStreak();
+      saveStats();
+      updateStats();
+      updateDots();
+      const isLong = completedSessions % sessionsUntilLong === 0;
+      notify(isLong ? 'Super! Zeit für eine lange Pause.' : 'Gut gemacht! Kurze Pause verdient.');
+      setTimeout(() => switchMode(isLong ? 'long' : 'break'), 800);
+    } else {
+      notify('Pause vorbei — bereit für die nächste Session?');
+      setTimeout(() => switchMode('focus'), 800);
+    }
+  }
+
+  function updateStreak() {
+    const today = new Date().toDateString();
+    if (lastDate === today) {
+      streak++;
+    } else if (lastDate === new Date(Date.now() - 86400000).toDateString()) {
+      streak++;
+    } else {
+      streak = 1;
+    }
+    lastDate = today;
+  }
+
+  function resetTimer() {
+    clearInterval(interval);
+    running = false;
+    playBtn.textContent = '▶';
+    remaining = totalSeconds;
+    updateDisplay();
+    updateRing();
+  }
+
+  function nextPhase() {
+    clearInterval(interval);
+    running = false;
+    playBtn.textContent = '▶';
+    const next = mode === 'focus'
+      ? (completedSessions % sessionsUntilLong === sessionsUntilLong - 1 ? 'long' : 'break')
+      : 'focus';
+    switchMode(next);
+  }
+
+  function updateDisplay() {
+    const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const s = String(remaining % 60).padStart(2, '0');
+    timeDisplay.textContent = `${m}:${s}`;
+    document.title = `${m}:${s} — Focus Timer`;
+  }
+
+  function updateRing() {
+    const progress = remaining / totalSeconds;
+    ring.style.strokeDashoffset = CIRCUMFERENCE * (1 - progress);
+    ring.style.stroke = colors[mode];
+  }
+
+  function updateDots() {
+    dots.innerHTML = '';
+    const total = sessionsUntilLong;
+    for (let i = 0; i < total; i++) {
+      const d = document.createElement('div');
+      d.className = 'dot' + (i < completedSessions % sessionsUntilLong || (completedSessions > 0 && completedSessions % sessionsUntilLong === 0) ? ' done' : '');
+      dots.appendChild(d);
+    }
+  }
+
+  function updateStats() {
+    document.getElementById('statSessions').textContent = completedSessions;
+    document.getElementById('statMinutes').textContent = totalFocusMinutes;
+    document.getElementById('statStreak').textContent = streak;
+  }
+
+  function saveStats() {
+    localStorage.setItem('ft_sessions', completedSessions);
+    localStorage.setItem('ft_minutes', totalFocusMinutes);
+    localStorage.setItem('ft_streak', streak);
+    localStorage.setItem('ft_lastDate', lastDate);
+  }
+
+  function loadStats() {
+    completedSessions = parseInt(localStorage.getItem('ft_sessions') || '0');
+    totalFocusMinutes = parseInt(localStorage.getItem('ft_minutes') || '0');
+    streak = parseInt(localStorage.getItem('ft_streak') || '0');
+    lastDate = localStorage.getItem('ft_lastDate');
+    updateStats();
+    updateDots();
+  }
+
+  function notify(msg) {
+    const el = document.getElementById('notify');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 3500);
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Focus Timer', { body: msg, icon: '' });
+    } else if ('Notification' in window && Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+  }
+
+  function toggleSettings() {
+    document.getElementById('settingsPanel').classList.toggle('open');
+  }
+
+  function applySettings() {
+    durations.focus = parseInt(document.getElementById('setFocus').value) || 25;
+    durations.break = parseInt(document.getElementById('setBreak').value) || 5;
+    durations.long = parseInt(document.getElementById('setLong').value) || 15;
+    sessionsUntilLong = parseInt(document.getElementById('setSessionsUntilLong').value) || 4;
+    switchMode(mode);
+    updateDots();
+  }
+
+  init();
+</script>
+</body>
+</html>
